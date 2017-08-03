@@ -6,6 +6,7 @@
  */
 
 const fritzRequest = require('./request.js')
+const crypto = require('crypto-browserify')
 
 let fritzLogin = {}
 
@@ -30,7 +31,7 @@ fritzLogin.getSessionId = (options) => {
       const challenge = response.body.match('<Challenge>(.*?)</Challenge>')[1]
 
       const buffer = Buffer(challenge + '-' + options.password, 'UTF-16LE')
-      const challengeResponse = challenge + '-' + require('crypto').createHash('md5').update(buffer).digest('hex')
+      const challengeResponse = challenge + '-' + crypto.createHash('md5').update(buffer).digest('hex')
       const path = '/login_sid.lua?username=' + options.username + '&response=' + challengeResponse
 
       return fritzRequest.request(path, 'GET', options)

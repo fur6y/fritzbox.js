@@ -5,10 +5,6 @@
  * Copyright (c) 2017 Sander Laarhoven All Rights Reserved.
  */
 
-const request = require('request-promise')
-const requestNoPromise = require('request')
-const fs = require('fs')
-
 let fritzRequest = {}
 
 /**
@@ -18,7 +14,7 @@ let fritzRequest = {}
  * @param  {object} options Options object
  * @return {promise}        Body of response
  */
-fritzRequest.request = (path, method, options, pipe = false, formData = false, formUrlEncoded = false) => {
+fritzRequest.request = (path, method, options) => {
   return new Promise(function (resolve, reject) {
     options.protocol = options.protocol || 'GET'
 
@@ -38,34 +34,18 @@ fritzRequest.request = (path, method, options, pipe = false, formData = false, f
     }
 
     // Set the options for the request.
-    let requestOptions = {
-      uri: options.protocol + '://' + options.server + path,
-      method: method || 'GET',
-      resolveWithFullResponse: true,
-      rejectUnauthorized: false
-    }
-
-    if (formData) {
-      requestOptions.formData = formData
-    }
-
-    if (formUrlEncoded) {
-      requestOptions.form = formUrlEncoded
-    }
-
-    // Pipe a file to disk.
-    if (pipe) {
-      let stream = requestNoPromise(requestOptions).pipe(fs.createWriteStream(pipe))
-      stream.on('finish', () => {
-        return resolve('File has been saved to ' + pipe)
-      })
+    const url = options.protocol + '://' + options.server + path;
+    const requestOptions = {
+      method: method || 'GET'
     }
 
     // Execute HTTP(S) request.
-    request(requestOptions)
-    .then((response) => {
-      return resolve(response)
-    })
+    fetch(url, requestOptions)
+    .then(response =>
+      response.text().then(body => {
+        resolve({ body, statusCode: response.status });
+      })
+    )
     .catch((error) => {
       console.log('[FritzRequest] Request failed.')
       return reject(error)
@@ -82,18 +62,22 @@ fritzRequest.findFailCause = (response) => {
   console.log('[FritzRequest] HTTP response code was ' + response.statusCode)
 
   if (response.statusCode === 403) {
-    return 'Not authenticated correctly for communication with Fritz!Box.'
+    response.errorMsg = 'Not authenticated correctly for communication with Fritz!Box.'; 
   }
 
   if (response.statusCode === 500) {
-    return 'The Fritz!Box encountered an internal server error.'
+    response.errorMsg = 'The Fritz!Box encountered an internal server error.'
   }
 
   if (response.statusCode === 404) {
-    return 'Requested page does not exist on the Fritz!Box.'
+    response.errorMsg = 'Requested page does not exist on the Fritz!Box.'
   }
 
-  return 'Encountered an unexpected error.'
+  if (!response.errorMsg) {
+    response.errorMsg = 'Encountered an unexpected error.';
+  }
+
+  return response;
 }
 
 /**
